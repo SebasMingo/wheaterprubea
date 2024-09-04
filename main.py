@@ -1,77 +1,69 @@
-# We import the necessary libraries (requests, argparse, chalk, and pyfiglet).
-# requests should be also installed, it's not a builtin library
 import requests
 import argparse
 import pyfiglet
 from simple_chalk import chalk
+import json
 
-
-#API Key for openWeatherMap
-API_KEY = 'your API Key'
-#Base URL for openWeatherMap API
+# API Key y URL base de la API
+API_KEY = '4f94042cbebb59e07feaa6527b71b136'
 BASE_URL = 'https://api.openweathermap.org/data/2.5/weather'
 
-#Mapping of weather codes to weather icons
+# Mapeo de íconos del clima
 WEATHER_ICONS = {
-    # day icons
-    "01d": "☀️",
-    "02d": "⛅️",
-    "03d": "☁️",
-    "04d": "☁️",
-    "09d": "🌧",
-    "10d": "🌦",
-    "11d": "⛈",
-    "13d": "🌨",
-    "50d": "🌫",
-    # night icons
-    "01n": "🌙",
-    "02n": "☁️",
-    "03n": "☁️",
-    "04n": "☁️",
-    "09n": "🌧",
-    "10n": "🌦",
-    "11n": "⛈",
-    "13n": "🌨",
-    "50n": "🌫",
+    "01d": "☀️", "02d": "⛅️", "03d": "☁️", "04d": "☁️",
+    "09d": "🌧", "10d": "🌦", "11d": "⛈", "13d": "🌨", "50d": "🌫",
+    "01n": "🌙", "02n": "☁️", "03n": "☁️", "04n": "☁️",
+    "09n": "🌧", "10n": "🌦", "11n": "⛈", "13n": "🌨", "50n": "🌫",
 }
 
-# We use the argparse library to parse the command-line arguments. The program expects 
-# one argument, the country to check the weather for.
-# Parse command-line arguments
+def get_weather_data(country):
+    url = f"{BASE_URL}?q={country}&appid={API_KEY}&units=metric"
+    response = requests.get(url)
 
-parser = argparse.ArgumentParser(description="Check the weather for a certain country/city.")
-parser.add_argument("country", help="the country/city to check the weather for")
-args = parser.parse_args()
+    if response.status_code == 404:
+        print(chalk.red(f"Error: City '{country}' not found."))
+        return None
+    elif response.status_code == 401:
+        print(chalk.red("Error: Invalid API Key."))
+        return None
+    elif response.status_code != 200:
+        print(chalk.red(f"Error: Unable to retrieve weather information for '{country}'."))
+        return None
 
-#We construct the API URL with the query parameters, using the args.country variable to specify the country.
-# Construct API URL with query parameters
-url = f"{BASE_URL}?q={args.country}&appid={API_KEY}&units=metric"
+    return response.json()
 
-# We make the API request using the requests library and check the response status code. If the status code is not 200, we print an error message and exit the program.
-# Make API request and parse response
-response = requests.get(url)
-if response.status_code != 200:
-    print(chalk.red("Error: Unable to retrieve weather information."))
-    exit()
-data = response.json()
+def display_weather(data, format="text"):
+    if not data:
+        return
 
+    temperature = data["main"]["temp"]
+    feels_like = data["main"]["feels_like"]
+    description = data["weather"][0]["description"]
+    icon = data["weather"][0]["icon"]
+    city = data["name"]
+    country = data["sys"]["country"]
 
-# We parse the JSON response from the API and extract the weather information we're 
-# interested in (temperature, feels like temperature, description, icon, city, and country).
-# Get weather information from response
-temperature = data["main"]["temp"]
-feels_like = data["main"]["feels_like"]
-description = data["weather"][0]["description"]
-icon = data["weather"][0]["icon"]
-city = data["name"]
-country = data["sys"]["country"]
+    if format == "json":
+        print(json.dumps(data, indent=4))
+    elif format == "csv":
+        print(f"{city},{country},{temperature},{feels_like},{description}")
+    else:
+        weather_icon = WEATHER_ICONS.get(icon, "")
+        output = f"{pyfiglet.figlet_format(city)}, {country}\n\n"
+        output += f"{weather_icon} {description}\n"
+        output += f"Temperature: {temperature}°C\n"
+        output += f"Feels like: {feels_like}°C\n"
+        print(chalk.green(output))
 
-# Construct output with weather icon
-weather_icon = WEATHER_ICONS.get(icon, "")
-output = f"{pyfiglet.figlet_format(city)}, {country}\n\n"
-output += f"{weather_icon} {description}\n"
-output += f"Temperature: {temperature}°C\n"
-output += f"Feels like: {feels_like}°C\n"
+def main():
+    parser = argparse.ArgumentParser(description="Check the weather for a certain country/city.")
+    parser.add_argument("countries", nargs="+", help="the countries/cities to check the weather for")
+    parser.add_argument("--format", choices=["json", "csv", "text"], default="text", help="Output format")
+    args = parser.parse_args()
 
-# Print output
-print(chalk.green(output))
+    for country in args.countries:
+        data = get_weather_data(country)
+        display_weather(data, args.format)
+
+if __name__ == "__main__":
+    main()
